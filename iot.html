@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GuardianAlert — IoT Fall Detection System</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --navy:    #0A1628;
+  --navy2:   #0F2040;
+  --navy3:   #172B52;
+  --blue:    #1E6FFF;
+  --blue2:   #3D8BFF;
+  --cyan:    #00D4FF;
+  --cyan2:   #7EEEFF;
+  --white:   #FFFFFF;
+  --off:     #EFF4FF;
+  --muted:   #8BA3CC;
+  --card:    rgba(255,255,255,0.04);
+  --border:  rgba(255,255,255,0.08);
+  --red:     #FF4C4C;
+  --green:   #00D68F;
+  --amber:   #FFB020;
+  --r: 14px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:16px}
+body{
+  background:var(--navy);
+  color:var(--white);
+  font-family:'DM Sans',sans-serif;
+  font-weight:400;
+  line-height:1.7;
+  overflow-x:hidden;
+}
+
+/* ── Noise texture overlay ── */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:0;opacity:0.4;
+}
+
+/* ── Typography ── */
+h1,h2,h3,h4,h5{font-family:'Syne',sans-serif;line-height:1.15;letter-spacing:-0.02em}
+h1{font-size:clamp(2.8rem,6vw,5.2rem);font-weight:800}
+h2{font-size:clamp(2rem,4vw,3.2rem);font-weight:700}
+h3{font-size:clamp(1.2rem,2.5vw,1.6rem);font-weight:700}
+h4{font-size:1.1rem;font-weight:600}
+p{color:var(--muted);font-size:1.05rem}
+
+/* ── Layout ── */
+.container{max-width:1180px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
+section{position:relative;z-index:1}
+
+/* ── NAV ── */
+nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  padding:20px 0;
+  background:rgba(10,22,40,0.85);
+  backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+  transition:padding .3s;
+}
+nav.scrolled{padding:14px 0}
+.nav-inner{display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-icon{
+  width:36px;height:36px;
+  background:linear-gradient(135deg,var(--blue),var(--cyan));
+  border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+}
+.logo-icon svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.logo-text{font-family:'Syne',sans-serif;font-weight:800;font-size:1.2rem;color:var(--white)}
+.logo-text span{color:var(--cyan)}
+.nav-links{display:flex;align-items:center;gap:32px;list-style:none}
+.nav-links a{color:var(--muted);text-decoration:none;font-size:.95rem;transition:color .2s}
+.nav-links a:hover{color:var(--white)}
+.nav-cta{
+  background:linear-gradient(135deg,var(--blue),var(--cyan));
+  color:#fff;border:none;padding:10px 22px;
+  border-radius:8px;font-family:'Syne',sans-serif;
+  font-weight:700;font-size:.9rem;cursor:pointer;
+  text-decoration:none;transition:opacity .2s;
+}
+.nav-cta:hover{opacity:.85}
+.hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:4px}
+.hamburger span{width:24px;height:2px;background:var(--white);border-radius:2px;transition:.3s}
+
+/* ── HERO ── */
+.hero{
+  min-height:100vh;
+  display:flex;align-items:center;
+  padding:140px 0 100px;
+  position:relative;overflow:hidden;
+}
+.hero-bg{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 80% 60% at 70% 50%, rgba(30,111,255,0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 20% 80%, rgba(0,212,255,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 90% 10%, rgba(0,214,143,0.06) 0%, transparent 60%);
+}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center}
+.hero-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(0,212,255,0.1);
+  border:1px solid rgba(0,212,255,0.25);
+  color:var(--cyan);padding:7px 16px;border-radius:100px;
+  font-size:.85rem;font-weight:500;margin-bottom:28px;
+  font-family:'Syne',sans-serif;
+}
+.hero-badge::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--cyan);animation:pulse-dot 2s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.4)}}
+.hero h1{margin-bottom:24px}
+.hero h1 em{font-style:normal;
+  background:linear-gradient(120deg,var(--cyan),var(--blue2));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-desc{font-size:1.15rem;margin-bottom:40px;max-width:480px;line-height:1.8}
+.hero-actions{display:flex;gap:16px;flex-wrap:wrap}
+.btn-primary{
+  display:inline-flex;align-items:center;gap:8px;
+  background:linear-gradient(135deg,var(--blue),var(--cyan));
+  color:#fff;padding:14px 28px;border-radius:10px;
+  font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;
+  text-decoration:none;border:none;cursor:pointer;
+  transition:transform .2s,box-shadow .2s;
+  box-shadow:0 8px 32px rgba(30,111,255,0.35);
+}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(30,111,255,0.5)}
+.btn-secondary{
+  display:inline-flex;align-items:center;gap:8px;
+  background:transparent;
+  border:1px solid var(--border);
+  color:var(--white);padding:14px 28px;border-radius:10px;
+  font-family:'Syne',sans-serif;font-weight:600;font-size:1rem;
+  text-decoration:none;cursor:pointer;
+  transition:border-color .2s,background .2s;
+}
+.btn-secondary:hover{border-color:rgba(255,255,255,0.3);background:rgba(255,255,255,0.05)}
+.hero-stats{display:flex;gap:40px;margin-top:52px;padding-top:40px;border-top:1px solid var(--border)}
+.stat-num{font-family:'Syne',sans-serif;font-size:2rem;font-weight:800;color:var(--white);display:block}
+.stat-label{font-size:.85rem;color:var(--muted)}
+
+/* Device illustration */
+.hero-visual{position:relative;display:flex;align-items:center;justify-content:center}
+.device-wrap{position:relative;width:400px;height:420px}
+.device-glow{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:300px;height:300px;
+  background:radial-gradient(circle,rgba(30,111,255,0.25) 0%,transparent 70%);
+  border-radius:50%;animation:glow-pulse 3s ease-in-out infinite;
+}
+@keyframes glow-pulse{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:1}50%{transform:translate(-50%,-50%) scale(1.15);opacity:.6}}
+.device-svg{position:relative;z-index:2;width:100%;height:100%}
+.float-card{
+  position:absolute;z-index:3;
+  background:rgba(15,32,64,0.9);
+  border:1px solid var(--border);
+  backdrop-filter:blur(12px);
+  border-radius:12px;padding:12px 16px;
+  animation:float 4s ease-in-out infinite;
+}
+.float-card:nth-child(3){animation-delay:-2s}
+.float-card.alert-card{top:20px;right:-10px}
+.float-card.status-card{bottom:40px;left:-20px}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.card-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-family:'Syne',sans-serif;margin-bottom:4px}
+.card-value{font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;color:var(--white)}
+.card-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px;animation:pulse-dot 2s infinite}
+.card-dot.red{background:var(--red)}
+
+/* ── SECTION COMMONS ── */
+.section-tag{
+  display:inline-block;
+  font-family:'Syne',sans-serif;font-size:.8rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.12em;
+  color:var(--cyan);margin-bottom:16px;
+}
+.section-header{margin-bottom:64px}
+.section-header h2{margin-bottom:16px}
+.section-header p{font-size:1.1rem;max-width:560px}
+
+/* ── PROBLEM ── */
+.problem{padding:100px 0;background:linear-gradient(180deg,var(--navy) 0%,var(--navy2) 100%)}
+.problem-grid{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center}
+.problem-stats{display:flex;flex-direction:column;gap:24px}
+.stat-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);padding:28px;
+  display:flex;align-items:center;gap:20px;
+  transition:border-color .3s;
+}
+.stat-card:hover{border-color:rgba(0,212,255,0.3)}
+.stat-card-icon{
+  width:52px;height:52px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  font-size:1.4rem;
+}
+.stat-card-icon.red{background:rgba(255,76,76,0.15)}
+.stat-card-icon.amber{background:rgba(255,176,32,0.15)}
+.stat-card-icon.blue{background:rgba(30,111,255,0.15)}
+.stat-card-num{font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:var(--white);line-height:1}
+.stat-card-desc{font-size:.9rem;color:var(--muted);margin-top:4px}
+.problem-text h2{margin-bottom:20px}
+.problem-text p{margin-bottom:16px}
+.problem-bullets{list-style:none;margin-top:28px;display:flex;flex-direction:column;gap:14px}
+.problem-bullets li{
+  display:flex;align-items:flex-start;gap:12px;
+  font-size:.95rem;color:var(--muted);
+}
+.problem-bullets li::before{
+  content:'';width:6px;height:6px;border-radius:50%;
+  background:var(--cyan);margin-top:8px;flex-shrink:0;
+}
+
+/* ── FEATURES ── */
+.features{padding:100px 0}
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.feature-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);padding:32px;
+  transition:transform .3s,border-color .3s,background .3s;
+  position:relative;overflow:hidden;
+}
+.feature-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--blue),var(--cyan));
+  opacity:0;transition:opacity .3s;
+}
+.feature-card:hover{transform:translateY(-4px);border-color:rgba(30,111,255,0.3);background:rgba(255,255,255,0.06)}
+.feature-card:hover::before{opacity:1}
+.feature-icon{
+  width:52px;height:52px;border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:20px;font-size:1.5rem;
+}
+.feature-icon.blue{background:rgba(30,111,255,0.15)}
+.feature-icon.cyan{background:rgba(0,212,255,0.12)}
+.feature-icon.green{background:rgba(0,214,143,0.12)}
+.feature-icon.amber{background:rgba(255,176,32,0.12)}
+.feature-icon.red{background:rgba(255,76,76,0.12)}
+.feature-icon.purple{background:rgba(160,100,255,0.12)}
+.feature-card h4{color:var(--white);margin-bottom:10px;font-size:1.05rem}
+.feature-card p{font-size:.92rem;line-height:1.7}
+
+/* ── HOW IT WORKS ── */
+.how{padding:100px 0;background:linear-gradient(180deg,var(--navy2) 0%,var(--navy3) 100%)}
+.steps-timeline{position:relative;padding-left:40px}
+.steps-timeline::before{
+  content:'';position:absolute;left:15px;top:24px;bottom:24px;
+  width:2px;background:linear-gradient(180deg,var(--blue),var(--cyan),var(--green));
+  border-radius:2px;
+}
+.step{display:flex;gap:32px;margin-bottom:52px;position:relative;align-items:flex-start}
+.step:last-child{margin-bottom:0}
+.step-dot{
+  position:absolute;left:-33px;
+  width:18px;height:18px;border-radius:50%;
+  background:linear-gradient(135deg,var(--blue),var(--cyan));
+  border:3px solid var(--navy2);
+  flex-shrink:0;top:4px;
+}
+.step-num{
+  width:48px;height:48px;border-radius:12px;
+  background:rgba(30,111,255,0.15);border:1px solid rgba(30,111,255,0.25);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;
+  color:var(--blue2);flex-shrink:0;
+}
+.step-content h3{color:var(--white);margin-bottom:8px;font-size:1.15rem}
+.step-content p{font-size:.95rem}
+.step-tag{
+  display:inline-block;margin-bottom:10px;
+  font-size:.75rem;font-family:'Syne',sans-serif;font-weight:700;
+  text-transform:uppercase;letter-spacing:.1em;
+  padding:4px 10px;border-radius:100px;
+}
+.step-tag.sense{background:rgba(0,214,143,0.15);color:var(--green)}
+.step-tag.calc{background:rgba(30,111,255,0.15);color:var(--blue2)}
+.step-tag.detect{background:rgba(255,176,32,0.15);color:var(--amber)}
+.step-tag.confirm{background:rgba(255,76,76,0.15);color:var(--red)}
+.step-tag.alert{background:rgba(0,212,255,0.15);color:var(--cyan)}
+.step-tag.cooldown{background:rgba(160,100,255,0.15);color:#C084FC}
+
+.how-grid{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:start}
+.how-visual{position:relative}
+.algo-box{
+  background:rgba(9,18,35,0.8);
+  border:1px solid var(--border);
+  border-radius:var(--r);padding:28px;
+  font-family:'DM Sans',monospace;
+  position:sticky;top:100px;
+}
+.algo-box pre{color:#a9d4ff;font-size:.82rem;line-height:1.9;white-space:pre-wrap;word-break:break-word}
+.algo-box .kw{color:#FF79C6}
+.algo-box .fn{color:#FFD700}
+.algo-box .num{color:#BD93F9}
+.algo-box .cm{color:#6272A4}
+.algo-title{font-family:'Syne',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.algo-title::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse-dot 2s infinite}
+
+/* ── COMPONENTS ── */
+.components{padding:100px 0}
+.comp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
+.comp-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);padding:24px;
+  transition:border-color .3s,transform .3s;
+}
+.comp-card:hover{border-color:rgba(0,212,255,0.25);transform:translateY(-3px)}
+.comp-num{
+  font-family:'Syne',sans-serif;font-size:.7rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px;
+}
+.comp-name{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:var(--white);margin-bottom:6px}
+.comp-spec{font-size:.85rem;color:var(--cyan);margin-bottom:8px}
+.comp-desc{font-size:.85rem;color:var(--muted);line-height:1.6}
+.comp-badge{
+  margin-top:12px;display:inline-block;
+  font-size:.72rem;font-family:'Syne',sans-serif;font-weight:700;
+  padding:3px 10px;border-radius:100px;
+  text-transform:uppercase;letter-spacing:.08em;
+}
+.comp-badge.core{background:rgba(30,111,255,0.15);color:var(--blue2)}
+.comp-badge.sensor{background:rgba(0,214,143,0.15);color:var(--green)}
+.comp-badge.comm{background:rgba(0,212,255,0.12);color:var(--cyan)}
+.comp-badge.power{background:rgba(255,176,32,0.12);color:var(--amber)}
+.comp-badge.output{background:rgba(255,76,76,0.12);color:var(--red)}
+.comp-badge.build{background:rgba(160,100,255,0.12);color:#C084FC}
+
+/* ── SPECS TABLE ── */
+.specs{padding:100px 0;background:linear-gradient(180deg,var(--navy) 0%,var(--navy2) 100%)}
+.specs-table{width:100%;border-collapse:collapse;margin-top:0}
+.specs-table th{
+  text-align:left;padding:14px 20px;
+  font-family:'Syne',sans-serif;font-weight:700;font-size:.8rem;
+  text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
+  border-bottom:1px solid var(--border);
+}
+.specs-table td{
+  padding:16px 20px;font-size:.95rem;
+  border-bottom:1px solid rgba(255,255,255,0.04);
+  vertical-align:top;
+}
+.specs-table tr:last-child td{border-bottom:none}
+.specs-table tr:hover td{background:rgba(255,255,255,0.03)}
+.specs-table .td-label{color:var(--white);font-weight:500}
+.specs-table .td-val{color:var(--muted)}
+.specs-table .td-highlight{color:var(--cyan);font-family:'Syne',sans-serif;font-weight:700}
+.specs-wrap{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);overflow:hidden;
+}
+.specs-2col{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:0}
+
+/* ── TESTING ── */
+.testing{padding:100px 0}
+.test-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.test-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);padding:28px;
+  transition:border-color .3s;
+}
+.test-card:hover{border-color:rgba(0,212,255,0.2)}
+.test-header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.test-step-num{
+  width:32px;height:32px;border-radius:8px;
+  background:linear-gradient(135deg,var(--blue),var(--cyan));
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Syne',sans-serif;font-weight:800;font-size:.9rem;color:#fff;
+  flex-shrink:0;
+}
+.test-card h4{color:var(--white);font-size:1rem}
+.test-card p{font-size:.9rem;line-height:1.7}
+.test-expected{
+  margin-top:14px;padding:12px;
+  background:rgba(0,214,143,0.08);border-left:3px solid var(--green);
+  border-radius:0 6px 6px 0;
+}
+.test-expected span{font-size:.82rem;color:var(--green);font-family:'Syne',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.08em;display:block;margin-bottom:4px}
+.test-expected p{font-size:.85rem;color:rgba(0,214,143,0.8);margin:0}
+
+/* ── UPGRADES ── */
+.upgrades{padding:100px 0;background:linear-gradient(180deg,var(--navy2) 0%,var(--navy3) 100%)}
+.upgrades-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}
+.upgrade-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);padding:32px;
+  display:flex;gap:20px;
+  transition:border-color .3s,transform .3s;
+}
+.upgrade-card:hover{border-color:rgba(30,111,255,0.3);transform:translateY(-3px)}
+.upgrade-icon{
+  width:48px;height:48px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.3rem;flex-shrink:0;
+}
+.upgrade-card h4{color:var(--white);margin-bottom:8px}
+.upgrade-card p{font-size:.9rem;line-height:1.7}
+.upgrade-chip{
+  display:inline-block;margin-top:12px;
+  font-size:.75rem;font-family:'Syne',sans-serif;font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;
+  padding:4px 12px;border-radius:100px;
+  background:rgba(30,111,255,0.12);color:var(--blue2);
+  border:1px solid rgba(30,111,255,0.2);
+}
+
+/* ── FAQ ── */
+.faq{padding:100px 0}
+.faq-list{display:flex;flex-direction:column;gap:0;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.faq-question{
+  width:100%;background:none;border:none;
+  text-align:left;padding:24px 28px;
+  color:var(--white);font-family:'Syne',sans-serif;font-weight:600;font-size:1rem;
+  cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+  border-bottom:1px solid var(--border);transition:background .2s;
+}
+.faq-item:last-child .faq-question{border-bottom:none}
+.faq-question:hover{background:rgba(255,255,255,0.03)}
+.faq-question.open{color:var(--cyan)}
+.faq-arrow{width:20px;height:20px;transition:transform .3s;flex-shrink:0;color:var(--muted)}
+.faq-question.open .faq-arrow{transform:rotate(180deg);color:var(--cyan)}
+.faq-answer{
+  max-height:0;overflow:hidden;transition:max-height .35s ease,padding .35s;
+  padding:0 28px;border-bottom:1px solid var(--border);
+}
+.faq-item:last-child .faq-answer{border-bottom:none}
+.faq-answer.open{max-height:300px;padding:16px 28px 24px}
+.faq-answer p{font-size:.95rem;line-height:1.8}
+
+/* ── BLOG / ABOUT ── */
+.about{padding:100px 0;background:linear-gradient(180deg,var(--navy2) 0%,var(--navy) 100%)}
+.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center}
+.about-content h2{margin-bottom:20px}
+.about-content p{margin-bottom:16px}
+.about-list{list-style:none;display:flex;flex-direction:column;gap:12px;margin-top:24px}
+.about-list li{
+  display:flex;align-items:flex-start;gap:12px;font-size:.95rem;color:var(--muted)
+}
+.about-list li .check{color:var(--green);font-size:1rem;margin-top:1px;flex-shrink:0}
+.impact-cards{display:flex;flex-direction:column;gap:20px}
+.impact-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);padding:28px;
+  display:flex;align-items:center;gap:20px;
+  transition:border-color .3s;
+}
+.impact-card:hover{border-color:rgba(0,212,255,0.25)}
+.impact-icon{font-size:2rem;flex-shrink:0}
+.impact-card h4{color:var(--white);margin-bottom:4px}
+.impact-card p{font-size:.9rem}
+
+/* ── CTA BANNER ── */
+.cta-banner{
+  padding:80px 0;
+  background:linear-gradient(135deg,rgba(30,111,255,0.15) 0%,rgba(0,212,255,0.08) 100%);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  text-align:center;
+}
+.cta-banner h2{margin-bottom:16px}
+.cta-banner p{margin-bottom:36px;font-size:1.1rem;max-width:560px;margin-left:auto;margin-right:auto}
+.cta-actions{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+
+/* ── FOOTER ── */
+footer{
+  padding:60px 0 40px;
+  border-top:1px solid var(--border);
+}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:48px}
+.footer-brand p{font-size:.9rem;margin-top:12px;max-width:260px;line-height:1.7}
+.footer-col h5{
+  font-family:'Syne',sans-serif;font-weight:700;font-size:.85rem;
+  text-transform:uppercase;letter-spacing:.1em;color:var(--white);
+  margin-bottom:16px;
+}
+.footer-col ul{list-style:none;display:flex;flex-direction:column;gap:10px}
+.footer-col ul li a{color:var(--muted);text-decoration:none;font-size:.9rem;transition:color .2s}
+.footer-col ul li a:hover{color:var(--white)}
+.footer-bottom{
+  display:flex;justify-content:space-between;align-items:center;
+  padding-top:28px;border-top:1px solid var(--border);
+  flex-wrap:wrap;gap:16px;
+}
+.footer-bottom p{font-size:.85rem}
+.footer-tags{display:flex;gap:10px;flex-wrap:wrap}
+.footer-tag{
+  font-size:.75rem;padding:4px 12px;
+  background:rgba(255,255,255,0.06);border:1px solid var(--border);
+  border-radius:100px;color:var(--muted);font-family:'Syne',sans-serif;
+}
+
+/* ── SCROLL ANIMATIONS ── */
+.reveal{opacity:0;transform:translateY(30px);transition:opacity .7s ease,transform .7s ease}
+.reveal.visible{opacity:1;transform:none}
+
+/* ── RESPONSIVE ── */
+@media(max-width:960px){
+  .hero-grid,.problem-grid,.how-grid,.about-grid{grid-template-columns:1fr;gap:48px}
+  .features-grid{grid-template-columns:repeat(2,1fr)}
+  .comp-grid{grid-template-columns:repeat(2,1fr)}
+  .footer-grid{grid-template-columns:1fr 1fr}
+  .hero-visual{display:none}
+  .hero-stats{gap:24px}
+}
+@media(max-width:640px){
+  .nav-links{display:none}
+  .hamburger{display:flex}
+  .features-grid,.comp-grid,.upgrades-grid,.test-grid{grid-template-columns:1fr}
+  .footer-grid{grid-template-columns:1fr}
+  .hero-stats{flex-direction:column;gap:20px}
+  .specs-2col{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="container nav-inner">
+    <a href="#" class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <span class="logo-text">Guardian<span>Alert</span></span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="#problem">Problem</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#components">Components</a></li>
+      <li><a href="#testing">Testing</a></li>
+      <li><a href="#upgrades">Upgrades</a></li>
+    </ul>
+    <a href="#cta" class="nav-cta">Get Started</a>
+    <div class="hamburger" onclick="toggleMenu()">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="home">
+  <div class="hero-bg"></div>
+  <div class="container">
+    <div class="hero-grid">
+      <div class="hero-content reveal">
+        <div class="hero-badge">🛡️ &nbsp;Life-Saving IoT Technology</div>
+        <h1>Fall Detection<br/>That <em>Actually Works</em></h1>
+        <p class="hero-desc">A wearable Arduino-based IoT device that detects falls in real time and sends an instant SMS alert to your family — no internet required, no subscriptions, no delays.</p>
+        <div class="hero-actions">
+          <a href="#how-it-works" class="btn-primary">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+            See How It Works
+          </a>
+          <a href="#components" class="btn-secondary">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            View Components
+          </a>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-item">
+            <span class="stat-num">₹1,300</span>
+            <span class="stat-label">Total build cost</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-num">2-Stage</span>
+            <span class="stat-label">Detection algorithm</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-num">7 hrs</span>
+            <span class="stat-label">Battery life</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-num">&lt;15s</span>
+            <span class="stat-label">SMS delivery time</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- DEVICE VISUAL -->
+      <div class="hero-visual reveal">
+        <div class="device-wrap">
+          <div class="device-glow"></div>
+          <svg class="device-svg" viewBox="0 0 400 420" fill="none">
+            <!-- Device body -->
+            <rect x="120" y="80" width="160" height="240" rx="20" fill="rgba(15,32,64,0.9)" stroke="rgba(30,111,255,0.5)" stroke-width="1.5"/>
+            <rect x="128" y="88" width="144" height="224" rx="14" fill="rgba(9,18,35,0.8)"/>
+            <!-- Screen area -->
+            <rect x="136" y="100" width="128" height="80" rx="8" fill="rgba(30,111,255,0.1)" stroke="rgba(30,111,255,0.2)" stroke-width="1"/>
+            <!-- Waveform -->
+            <polyline points="144,140 156,128 164,148 172,120 180,145 188,132 196,140 204,126 212,142 220,130 228,140 236,140 252,140" fill="none" stroke="#00D4FF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <!-- Status lights -->
+            <circle cx="152" cy="200" r="6" fill="rgba(0,214,143,0.2)" stroke="#00D68F" stroke-width="1.5"/>
+            <circle cx="152" cy="200" r="3" fill="#00D68F">
+              <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+            </circle>
+            <text x="166" y="204" fill="#8BA3CC" font-family="DM Sans,sans-serif" font-size="11">System Active</text>
+            <!-- GSM signal bars -->
+            <rect x="136" y="225" width="5" height="8"  rx="1" fill="#1E6FFF"/>
+            <rect x="144" y="220" width="5" height="13" rx="1" fill="#1E6FFF"/>
+            <rect x="152" y="215" width="5" height="18" rx="1" fill="#1E6FFF"/>
+            <rect x="160" y="210" width="5" height="23" rx="1" fill="rgba(30,111,255,0.3)"/>
+            <text x="172" y="232" fill="#8BA3CC" font-family="DM Sans,sans-serif" font-size="10">GSM: Airtel</text>
+            <!-- Belt clip -->
+            <rect x="168" y="316" width="64" height="16" rx="6" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+            <text x="200" y="328" fill="#8BA3CC" font-family="DM Sans,sans-serif" font-size="9" text-anchor="middle">Belt Clip</text>
+            <!-- SIM indicator -->
+            <rect x="248" y="110" width="24" height="16" rx="3" fill="rgba(0,212,255,0.15)" stroke="rgba(0,212,255,0.3)" stroke-width="1"/>
+            <text x="260" y="122" fill="#00D4FF" font-family="DM Sans,sans-serif" font-size="8" text-anchor="middle">SIM</text>
+            <!-- USB charging port -->
+            <rect x="182" y="316" width="36" height="5" rx="2" fill="rgba(255,176,32,0.4)"/>
+          </svg>
+
+          <!-- Floating alert card -->
+          <div class="float-card alert-card">
+            <div class="card-label">Fall Alert</div>
+            <div class="card-value"><span class="card-dot red"></span>SMS Sent</div>
+          </div>
+          <!-- Floating status card -->
+          <div class="float-card status-card">
+            <div class="card-label">Monitoring</div>
+            <div class="card-value"><span class="card-dot"></span>Active — 1.02g</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section class="problem" id="problem">
+  <div class="container">
+    <div class="problem-grid">
+      <div class="problem-text reveal">
+        <span class="section-tag">The Problem</span>
+        <h2>Falls Are the #1 Cause of Injury Death in the Elderly</h2>
+        <p>Every year, millions of elderly individuals fall and cannot get up. Without a way to call for help, they may lie on the floor for hours — dramatically worsening outcomes, causing hypothermia, dehydration, and secondary injuries.</p>
+        <p>Commercial solutions are expensive, require Wi-Fi, or depend on subscriptions that most families in India simply cannot afford.</p>
+        <ul class="problem-bullets">
+          <li>Elderly individuals living alone cannot reach a phone after a fall</li>
+          <li>A 1-hour delay in response dramatically increases complications</li>
+          <li>Commercial medical alert systems cost ₹5,000–₹20,000+</li>
+          <li>Most require Wi-Fi or active smartphone pairing — impractical for rural areas</li>
+          <li>No affordable, standalone, cellular-based solution exists at scale</li>
+        </ul>
+      </div>
+      <div class="problem-stats reveal">
+        <div class="stat-card">
+          <div class="stat-card-icon red">⚠️</div>
+          <div class="stat-card-body">
+            <div class="stat-card-num">37.3M</div>
+            <div class="stat-card-desc">Falls requiring medical attention annually — World Health Organization</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon amber">⏱️</div>
+          <div class="stat-card-body">
+            <div class="stat-card-num">1 in 5</div>
+            <div class="stat-card-desc">Falls causes serious injury like broken bones or head trauma in elderly</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon blue">📱</div>
+          <div class="stat-card-body">
+            <div class="stat-card-num">₹1,300</div>
+            <div class="stat-card-desc">GuardianAlert build cost vs ₹15,000+ for commercial alternatives</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-tag">Key Features</span>
+      <h2>Everything You Need.<br/>Nothing You Don't.</h2>
+      <p>GuardianAlert is purpose-built for simplicity, reliability, and real-world daily use.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card reveal">
+        <div class="feature-icon blue">🧠</div>
+        <h4>Two-Stage Detection</h4>
+        <p>A spike above 2.5g triggers a watch window. Stillness below 0.3g after 500ms confirms a real fall — eliminating false alarms from jumping, sitting, or bumping.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon cyan">📡</div>
+        <h4>No Internet Required</h4>
+        <p>Uses the SIM800L GSM module to send SMS over the cellular network. Works anywhere with Airtel, Jio, Vi, or BSNL signal — no Wi-Fi, no apps, no data plan needed.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon green">🔋</div>
+        <h4>Rechargeable Wearable</h4>
+        <p>Powered by an 18650 Li-ion cell with TP4056 USB charging. Up to 7 hours of continuous monitoring. Charges overnight like a phone — clip it on and go.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon amber">⚡</div>
+        <h4>Instant Dual Alert</h4>
+        <p>On fall detection, the local buzzer activates immediately for on-site awareness while the SIM800L simultaneously dispatches an SMS to the family contact.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon red">🛡️</div>
+        <h4>False Alarm Guard</h4>
+        <p>The two-stage algorithm rejects rapid movements that aren't falls. A 30-second cooldown after each alert prevents SMS spam during recovery or multiple triggers.</p>
+      </div>
+      <div class="feature-card reveal">
+        <div class="feature-icon purple">🔧</div>
+        <h4>Fully Customisable</h4>
+        <p>Thresholds are software-adjustable via Serial Monitor. Change the sensitivity, emergency number, cooldown period, or SMS message content in minutes.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how" id="how-it-works">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-tag">How It Works</span>
+      <h2>Six Steps from Fall<br/>to Family Alert</h2>
+      <p>The two-stage detection algorithm is the heart of GuardianAlert. Here's exactly what happens from the moment the device senses movement to the moment an SMS lands on your phone.</p>
+    </div>
+    <div class="how-grid">
+      <div class="steps-timeline reveal">
+        <div class="step">
+          <div class="step-dot"></div>
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <span class="step-tag sense">Sense</span>
+            <h3>Continuous Acceleration Monitoring</h3>
+            <p>The MPU6050 reads 3-axis acceleration (X, Y, Z) and angular velocity 10 times per second via I²C. Data streams to the Arduino Nano continuously, 24/7, with zero user interaction required.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-dot"></div>
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <span class="step-tag calc">Calculate</span>
+            <h3>Magnitude Computation</h3>
+            <p>Arduino computes the Euclidean magnitude of the 3D acceleration vector every 100ms: <strong style="color:var(--cyan)">a = √(ax² + ay² + az²)</strong>. Normal walking stays around 1.0–1.5g. This single number represents total force on the body regardless of device orientation.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-dot"></div>
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <span class="step-tag detect">Detect</span>
+            <h3>Impact Spike Detection</h3>
+            <p>When the computed magnitude crosses 2.5g, the system enters a fall watch window. This threshold is calibrated to catch the sharp acceleration spike that occurs when a body hits the ground, while ignoring smaller jolts from everyday activities.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-dot"></div>
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <span class="step-tag confirm">Confirm</span>
+            <h3>Stillness Confirmation — The Key Innovation</h3>
+            <p>After 500ms, the system re-samples. If acceleration is now below 0.3g (person lying still), the fall is confirmed. If the person is still moving (jumped, sat down fast), no alert fires. This is what separates GuardianAlert from single-threshold systems.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-dot"></div>
+          <div class="step-num">5</div>
+          <div class="step-content">
+            <span class="step-tag alert">Alert</span>
+            <h3>Simultaneous Dual Alert</h3>
+            <p>Both alerts fire at the same instant: the buzzer activates locally at 1kHz for 10 seconds providing on-site audio warning, while the SIM800L transmits an SMS to the preset emergency contact. SMS delivery takes 10–15 seconds on most networks.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-dot"></div>
+          <div class="step-num">6</div>
+          <div class="step-content">
+            <span class="step-tag cooldown">Cooldown</span>
+            <h3>30-Second Cooldown Period</h3>
+            <p>After an alert, the system waits 30 seconds before re-entering detection. This prevents duplicate SMS messages if the person moves during recovery, while ensuring the system is monitoring again quickly enough to catch a second event.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="how-visual reveal">
+        <div class="algo-box">
+          <div class="algo-title">Arduino — Core Detection Logic</div>
+          <pre><span class="kw">void</span> <span class="fn">loop</span>() {
+  <span class="cm">// Sample every 100ms</span>
+  <span class="kw">float</span> a = <span class="fn">getAccelMagnitude</span>();
+  <span class="fn">Serial.println</span>(a);
+
+  <span class="cm">// Stage 1: Impact spike</span>
+  <span class="kw">if</span> (a &gt; <span class="num">2.5</span>) {
+    <span class="fn">delay</span>(<span class="num">500</span>); <span class="cm">// wait for fall</span>
+
+    <span class="cm">// Stage 2: Stillness check</span>
+    <span class="kw">float</span> a2 = <span class="fn">getAccelMagnitude</span>();
+    <span class="kw">if</span> (a2 &lt; <span class="num">0.3</span>) {
+      <span class="cm">// Fall confirmed!</span>
+      <span class="fn">triggerAlert</span>();
+      <span class="fn">delay</span>(<span class="num">30000</span>); <span class="cm">// cooldown</span>
+    }
+  }
+  <span class="fn">delay</span>(<span class="num">100</span>);
+}
+
+<span class="kw">float</span> <span class="fn">getAccelMagnitude</span>() {
+  <span class="kw">int16_t</span> ax, ay, az;
+  <span class="fn">mpu.getAcceleration</span>(&amp;ax,&amp;ay,&amp;az);
+  <span class="kw">float</span> x = ax / <span class="num">16384.0</span>;
+  <span class="kw">float</span> y = ay / <span class="num">16384.0</span>;
+  <span class="kw">float</span> z = az / <span class="num">16384.0</span>;
+  <span class="kw">return</span> <span class="fn">sqrt</span>(x*x + y*y + z*z);
+}
+
+<span class="kw">void</span> <span class="fn">triggerAlert</span>() {
+  <span class="fn">tone</span>(BUZZ_PIN, <span class="num">1000</span>);
+  <span class="fn">digitalWrite</span>(LED_PIN, HIGH);
+  <span class="fn">sendSMS</span>(<span class="num">"+91XXXXXXXXXX"</span>,
+    <span class="num">"FALL DETECTED!"</span>);
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPONENTS -->
+<section class="components" id="components">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-tag">Hardware</span>
+      <h2>20 Components.<br/>Complete System.</h2>
+      <p>Every part is widely available in India from Robu.in, RoboElements, or local electronics markets. No specialist sourcing required.</p>
+    </div>
+    <div class="comp-grid reveal">
+      <div class="comp-card">
+        <div class="comp-num">01</div>
+        <div class="comp-name">Arduino Nano</div>
+        <div class="comp-spec">ATmega328P · 5V · 16MHz</div>
+        <div class="comp-desc">The brain of the system. Runs the fall detection algorithm, controls all outputs, and orchestrates the GSM module via SoftwareSerial.</div>
+        <span class="comp-badge core">Core MCU</span>
+      </div>
+      <div class="comp-card">
+        <div class="comp-num">02</div>
+        <div class="comp-name">MPU6050</div>
+        <div class="comp-spec">6-axis IMU · I²C · ±2g to ±16g</div>
+        <div class="comp-desc">Combines a 3-axis accelerometer and 3-axis gyroscope. Samples motion 10× per second and streams raw data over I²C to the Nano.</div>
+        <span class="comp-badge sensor">Sensor</span>
+      </div>
+      <div class="comp-card">
+        <div class="comp-num">03</div>
+        <div class="comp-name">SIM800L GSM Module</div>
+        <div class="comp-spec">Quad-band · GSM/GPRS · 3.7V</div>
+        <div class="comp-desc">Sends SMS alerts over any Indian cellular network. Communicates via AT commands through SoftwareSerial. Requires a direct 3.7V supply — not Arduino 5V.</div>
+        <span class="comp-badge comm">Communication</span>
+      </div>
+      <div class="comp-card">
+        <div class="comp-num">04</div>
+        <div class="comp-name">18650 Li-ion Cell</div>
+        <div class="comp-spec">3.7V · ~2600mAh · Rechargeable</div>
+        <div class="comp-desc">Main power source. Provides ~7 hours of continuous operation. Directly powers the SIM800L, and feeds the Arduino via MT3608 boost converter.</div>
+        <span class="comp-badge power">Power</span>
+      </div>
+      <div class="comp-card">
+        <div class="comp-num">05</div>
+        <div class="comp-name">TP4056 Module</div>
+        <div class="comp-spec">USB-C / Micro-USB · 1A charge</div>
+        <div class="comp-desc">Safely charges the 18650 cell via USB. Has built-in overcharge and overdischarge protection. Blue LED = charging, green LED = fully charged.</div>
+        <span class="comp-badge power">Power</span>
+      </div>
+      <div class="comp-card">
+        <div class="comp-num">06</div>
+        <div class="comp-name">MT3608 Boost Converter</div>
+        <div class="comp-spec">2–24V in · Adjustable out · Up to 28V</div>
+        <div class="comp-desc">Steps up the 18650's 3.7V to a stable 5V for the Arduino Nano. Must be adjusted to exactly 5.0V using a multimeter before connecting to the Nano.</div>
+        <span class="comp-badge power">Power</span>
+      </div>
+      <div class="comp-card">
+        <div class="comp-num">07</div>
+        <div class="comp-name">Active Buzzer</div>
+        <div class="comp-spec">5V · 85dB · Digital drive</div>
+        <div class="comp-desc">Local audible alarm triggered on fall detection. Connects directly to Arduino D8. No driver circuit needed — HIGH/LOW digital output is sufficient.</div>
+        <span class="comp-badge output">Output</span>
+      </div>
+      <div class="comp-card">
+        <div class="comp-num">08</div>
+        <div class="comp-name">Red LED + 220Ω Resistor</div>
+        <div class="comp-spec">5mm · 2V forward · 10mA</div>
+        <div class="comp-desc">Visual fall indicator connected to D9 via a current-limiting 220Ω resistor in series. Flashes on fall confirmation for visual feedback.</div>
+        <span class="comp-badge output">Output</span>
+      </div>
+      <div class="comp-card">
+        <div class="comp-num">09</div>
+        <div class="comp-name">Resistors 1kΩ + 2kΩ</div>
+        <div class="comp-spec">¼W · Carbon film · ±5%</div>
+        <div class="comp-desc">Form the mandatory voltage divider on SIM800L RXD. Steps down Arduino's 5V logic to ~3.3V — required to protect the SIM800L's RXD pin from damage.</div>
+        <span class="comp-badge build">Protection</span>
+      </div>
+      <div class="comp-card">
+        <div class="comp-num">10</div>
+        <div class="comp-name">Breadboard</div>
+        <div class="comp-spec">Full or half-size · 2.54mm pitch</div>
+        <div class="comp-desc">For prototyping and testing the circuit. All components and jumper wires plug in without soldering during development and calibration.</div>
+        <span class="comp-badge build">Build</span>
+      </div>
+      <div class="comp-card">
+        <div class="comp-num">11</div>
+        <div class="comp-name">Perfboard</div>
+        <div class="comp-spec">Universal PCB · 2.54mm pitch</div>
+        <div class="comp-desc">For the final permanent build. All connections are soldered onto the perfboard, replacing the breadboard for a compact, vibration-resistant wearable assembly.</div>
+        <span class="comp-badge build">Build</span>
+      </div>
+      <div class="comp-card">
+        <div class="comp-num">12</div>
+        <div class="comp-name">ABS Project Box</div>
+        <div class="comp-spec">~90×65×36mm · Drillable</div>
+        <div class="comp-desc">Compact enclosure for the final wearable device. Drill openings for LED, buzzer grille, USB charging port, and SIM card tray access.</div>
+        <span class="comp-badge build">Enclosure</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SPECS -->
+<section class="specs" id="specs">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-tag">Technical Specs</span>
+      <h2>Full System Specifications</h2>
+    </div>
+    <div class="specs-2col reveal">
+      <div class="specs-wrap">
+        <table class="specs-table">
+          <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td class="td-label">Microcontroller</td><td class="td-val">Arduino Nano (ATmega328P)</td></tr>
+            <tr><td class="td-label">Operating Voltage</td><td class="td-val">5V (via MT3608 from 18650)</td></tr>
+            <tr><td class="td-label">Sensor</td><td class="td-val">MPU6050 — 6-axis IMU (I²C)</td></tr>
+            <tr><td class="td-label">Sampling Rate</td><td class="td-val">10 Hz (100ms interval)</td></tr>
+            <tr><td class="td-label">Fall Threshold</td><td class="td-val">2.5g (adjustable in code)</td></tr>
+            <tr><td class="td-label">Stillness Threshold</td><td class="td-val">0.3g (adjustable in code)</td></tr>
+            <tr><td class="td-label">Confirm Window</td><td class="td-val">500ms post-impact</td></tr>
+            <tr><td class="td-label">Alert Cooldown</td><td class="td-val">30 seconds</td></tr>
+            <tr><td class="td-label">Local Alarm Duration</td><td class="td-val">10 seconds (buzzer + LED)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="specs-wrap">
+        <table class="specs-table">
+          <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+          <tbody>
+            <tr><td class="td-label">Communication</td><td class="td-val">SIM800L — Quad-band GSM/GPRS</td></tr>
+            <tr><td class="td-label">Networks Supported</td><td class="td-val">Airtel, Jio, Vi, BSNL (India)</td></tr>
+            <tr><td class="td-label">SMS Delivery Time</td><td class="td-val">10–15 seconds</td></tr>
+            <tr><td class="td-label">Battery</td><td class="td-val">18650 Li-ion, ~2600mAh, 3.7V</td></tr>
+            <tr><td class="td-label">Battery Life</td><td class="td-val">~6–8 hours continuous</td></tr>
+            <tr><td class="td-label">Charging</td><td class="td-val">USB via TP4056 (1A)</td></tr>
+            <tr><td class="td-label">Wear Position</td><td class="td-val">Belt / waist (recommended)</td></tr>
+            <tr><td class="td-label">Total Build Cost</td><td class="td-highlight">~₹1,300 all-in</td></tr>
+            <tr><td class="td-label">Build Time</td><td class="td-val">1–2 weeks</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTING -->
+<section class="testing" id="testing">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-tag">Testing & Calibration</span>
+      <h2>Verify Your Build<br/>in 6 Steps</h2>
+      <p>Open the Arduino Serial Monitor at 9600 baud before starting. You'll see live g-force values printed every 100ms to help with calibration.</p>
+    </div>
+    <div class="test-grid reveal">
+      <div class="test-card">
+        <div class="test-header">
+          <div class="test-step-num">1</div>
+          <h4>Power On — Serial Monitor Check</h4>
+        </div>
+        <p>Upload the code, open Serial Monitor at 9600 baud. You should see "GSM ready." then "System ready." printed. If neither appears, check your wiring.</p>
+        <div class="test-expected">
+          <span>Expected Output</span>
+          <p>GSM ready. → System ready. → g-force values streaming every 100ms</p>
+        </div>
+      </div>
+      <div class="test-card">
+        <div class="test-header">
+          <div class="test-step-num">2</div>
+          <h4>Baseline Reading — Standing Still</h4>
+        </div>
+        <p>Hold the device completely still and observe Serial Monitor values. Earth's gravity alone should produce approximately 1.0g at all times regardless of device orientation.</p>
+        <div class="test-expected">
+          <span>Expected Output</span>
+          <p>Steady readings between 0.95g and 1.05g — this confirms the MPU6050 is working correctly</p>
+        </div>
+      </div>
+      <div class="test-card">
+        <div class="test-header">
+          <div class="test-step-num">3</div>
+          <h4>Walk Test — No False Alarms</h4>
+        </div>
+        <p>Clip the device to your belt and walk normally, sit down, and stand up. Monitor the Serial Monitor. None of these activities should trigger an alert.</p>
+        <div class="test-expected">
+          <span>Expected Output</span>
+          <p>Values fluctuate 0.8g – 1.8g. No "Fall Confirmed" message and no SMS sent</p>
+        </div>
+      </div>
+      <div class="test-card">
+        <div class="test-header">
+          <div class="test-step-num">4</div>
+          <h4>Simulated Fall — Drop Test</h4>
+        </div>
+        <p>Hold the device in your hand at chest height, then drop it sharply downward onto a padded surface (folded cloth or cushion). The impact spike should exceed 2.5g.</p>
+        <div class="test-expected">
+          <span>Expected Output</span>
+          <p>"Impact spike detected!" → "Fall CONFIRMED — Alerting..." → SMS arrives in 10–15 seconds</p>
+        </div>
+      </div>
+      <div class="test-card">
+        <div class="test-header">
+          <div class="test-step-num">5</div>
+          <h4>GSM Network Check — SIM LED</h4>
+        </div>
+        <p>Observe the small LED on the SIM800L module after power-on. The blink pattern tells you the network registration status before attempting any SMS tests.</p>
+        <div class="test-expected">
+          <span>LED Patterns</span>
+          <p>Blink every 3s = registered on network ✓ &nbsp;|&nbsp; Fast blink = still searching &nbsp;|&nbsp; No blink = not powered</p>
+        </div>
+      </div>
+      <div class="test-card">
+        <div class="test-header">
+          <div class="test-step-num">6</div>
+          <h4>Threshold Calibration</h4>
+        </div>
+        <p>Use Serial Monitor readings to fine-tune FALL_THRESHOLD. If false alarms occur during vigorous activity, raise the value. If real falls aren't detected, lower it gradually by 0.2g increments.</p>
+        <div class="test-expected">
+          <span>Calibration Guide</span>
+          <p>Walk: 1.0–1.5g &nbsp;|&nbsp; Sit fast: 1.5–2.0g &nbsp;|&nbsp; Fall: 2.5g+ &nbsp;|&nbsp; Adjust threshold between these ranges</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- UPGRADES -->
+<section class="upgrades" id="upgrades">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-tag">Future Upgrades</span>
+      <h2>Built to Grow With You</h2>
+      <p>GuardianAlert is designed as a modular base system. Each upgrade is independent and additive — start with the core and expand at your own pace.</p>
+    </div>
+    <div class="upgrades-grid reveal">
+      <div class="upgrade-card">
+        <div class="upgrade-icon" style="background:rgba(30,111,255,0.15)">📍</div>
+        <div>
+          <h4>GPS Location in SMS</h4>
+          <p>Add a NEO-6M GPS module to include the wearer's exact latitude and longitude in every SMS alert. Enables faster emergency response especially outdoors or in unfamiliar locations.</p>
+          <div>
+            <span class="upgrade-chip">NEO-6M GPS ~₹300</span>
+          </div>
+        </div>
+      </div>
+      <div class="upgrade-card">
+        <div class="upgrade-icon" style="background:rgba(0,212,255,0.12)">📶</div>
+        <div>
+          <h4>Wi-Fi &amp; WhatsApp Alerts</h4>
+          <p>Replace the SIM800L with a NodeMCU ESP8266 to send alerts via WhatsApp, email, or a custom push notification — over home Wi-Fi with no SIM card or cellular cost.</p>
+          <div>
+            <span class="upgrade-chip">NodeMCU ESP8266 ~₹250</span>
+          </div>
+        </div>
+      </div>
+      <div class="upgrade-card">
+        <div class="upgrade-icon" style="background:rgba(0,214,143,0.12)">❤️</div>
+        <div>
+          <h4>Heart Rate + SpO2 Monitoring</h4>
+          <p>Integrate the MAX30102 pulse oximeter sensor to monitor heart rate and blood oxygen alongside fall detection — creating a comprehensive wearable health monitor.</p>
+          <div>
+            <span class="upgrade-chip">MAX30102 ~₹150</span>
+          </div>
+        </div>
+      </div>
+      <div class="upgrade-card">
+        <div class="upgrade-icon" style="background:rgba(255,176,32,0.12)">📱</div>
+        <div>
+          <h4>Mobile App Dashboard</h4>
+          <p>Build a simple Android app or web dashboard to receive real-time push notifications, view incident history, check device battery level, and manage emergency contacts remotely.</p>
+          <div>
+            <span class="upgrade-chip">ESP8266 + Web Server</span>
+          </div>
+        </div>
+      </div>
+      <div class="upgrade-card">
+        <div class="upgrade-icon" style="background:rgba(255,76,76,0.12)">🆘</div>
+        <div>
+          <h4>Manual SOS Button</h4>
+          <p>Add a tactile push button connected to Arduino D7 so the wearer can trigger an alert manually — for situations like sudden chest pain, dizziness, or any emergency that isn't a physical fall.</p>
+          <div>
+            <span class="upgrade-chip">Tactile button ~₹5</span>
+          </div>
+        </div>
+      </div>
+      <div class="upgrade-card">
+        <div class="upgrade-icon" style="background:rgba(160,100,255,0.12)">🖥️</div>
+        <div>
+          <h4>OLED Status Display</h4>
+          <p>Add an SSD1306 0.96" OLED screen to show live system status, battery level, network signal strength, and last-alert timestamp directly on the device without needing a phone or Serial Monitor.</p>
+          <div>
+            <span class="upgrade-chip">SSD1306 OLED ~₹120</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq" id="faq">
+  <div class="container">
+    <div class="section-header reveal">
+      <span class="section-tag">FAQ</span>
+      <h2>Frequently Asked Questions</h2>
+    </div>
+    <div class="faq-list reveal">
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          Which mobile networks does GuardianAlert work with?
+          <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="faq-answer">
+          <p>GuardianAlert works on any network that supports the SIM800L quad-band GSM module. In India this includes Airtel, Jio, Vi (Vodafone-Idea), and BSNL. You need a standard active prepaid SIM card with SMS capability — no data plan required. Any nano-SIM with a simple SMS pack will work.</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          How do I change the emergency contact number?
+          <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="faq-answer">
+          <p>Open the Arduino code and find the line: <code style="color:var(--cyan)">#define EMERGENCY_NUMBER "+91XXXXXXXXXX"</code>. Replace the X digits with the actual 10-digit mobile number including the +91 country code prefix. Re-upload the sketch to the Arduino Nano. You can store multiple numbers by calling sendSMS() multiple times inside triggerAlert().</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          What if the buzzer goes off by accident?
+          <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="faq-answer">
+          <p>The two-stage detection algorithm is specifically designed to minimise false alarms. If you're still experiencing them, open the Serial Monitor, observe the g-force readings during the activity that's triggering false alarms, and raise the FALL_THRESHOLD by 0.2–0.3g increments until false triggers stop. The algorithm will not confirm a fall unless both the impact spike AND the subsequent stillness condition are met.</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          How long does the battery last?
+          <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="faq-answer">
+          <p>On a fully-charged Samsung or LG 18650 cell (~2600mAh), the system runs for approximately 6–8 hours of continuous monitoring. The SIM800L is the biggest power draw. Charging via the TP4056 USB module takes about 2–3 hours. A practical daily routine is to charge the device overnight and wear it during waking hours — similar to a smartwatch.</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          Can it detect falls if the device is in a pocket rather than clipped to the belt?
+          <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="faq-answer">
+          <p>Yes, but accuracy varies by position. The best placement is the belt or waist — it's closest to the body's centre of mass and gives the most stable, representative acceleration readings. A shirt or trouser pocket also works reasonably well. Avoid wrist placement as frequent hand movements cause false alarms. The algorithm uses magnitude rather than orientation, so exact orientation doesn't matter as long as placement is consistent.</p>
+        </div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-question" onclick="toggleFaq(this)">
+          Where can I buy the components in India?
+          <svg class="faq-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="faq-answer">
+          <p>All components are available online from Robu.in and RoboElements (fast shipping across India). The Arduino Nano, MPU6050, buzzer, LED, and resistors are also available at any local electronics market (Nehru Place in Delhi, Lamington Road in Mumbai, SP Road in Bangalore). The 18650 cell can be found at mobile phone repair shops. The SIM card from any Airtel or Jio retailer.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT / IMPACT -->
+<section class="about" id="about">
+  <div class="container">
+    <div class="about-grid">
+      <div class="about-content reveal">
+        <span class="section-tag">About the Project</span>
+        <h2>Made in India.<br/>Built for India.</h2>
+        <p>GuardianAlert was born from a simple observation: the people who need fall detection the most — elderly individuals in small towns and villages — are the least able to afford commercial solutions.</p>
+        <p>By building on accessible Arduino hardware and using the existing cellular network rather than Wi-Fi, this project delivers life-saving technology at a fraction of the cost of commercial alternatives — with components available at any local electronics market.</p>
+        <p>This is an open-source mini IoT project designed for engineering students, hobbyists, and families who want to build their own safety devices without compromise.</p>
+        <ul class="about-list">
+          <li><span class="check">✓</span> Completely open-source — code, schematics, and documentation freely available</li>
+          <li><span class="check">✓</span> No cloud dependency, no subscriptions, no ongoing costs beyond the SIM card</li>
+          <li><span class="check">✓</span> Built with components available at any Indian electronics store</li>
+          <li><span class="check">✓</span> Modular design — add features as your skills and budget grow</li>
+          <li><span class="check">✓</span> Documented thoroughly for undergraduate engineering project use</li>
+        </ul>
+      </div>
+      <div class="impact-cards reveal">
+        <div class="impact-card">
+          <div class="impact-icon">🌍</div>
+          <div>
+            <h4>Real-World Impact</h4>
+            <p>Directly addresses the gap between expensive commercial solutions and the people who need help most — elderly individuals in lower-income households across India.</p>
+          </div>
+        </div>
+        <div class="impact-card">
+          <div class="impact-icon">📚</div>
+          <div>
+            <h4>Educational Value</h4>
+            <p>Covers I²C communication, UART/AT commands, voltage dividers, power management, algorithm design, and enclosure assembly — a complete embedded systems curriculum in one project.</p>
+          </div>
+        </div>
+        <div class="impact-card">
+          <div class="impact-icon">🔓</div>
+          <div>
+            <h4>Open & Extensible</h4>
+            <p>Every part of this project — hardware, software, and documentation — is open. Fork it, modify it, improve it, and share it with your own community.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-banner" id="cta">
+  <div class="container">
+    <span class="section-tag">Get Started Today</span>
+    <h2>Build Your GuardianAlert<br/>This Weekend</h2>
+    <p>Everything you need is already documented — the code, the component list, the wiring, and the calibration guide. Start with a breadboard prototype and have it working in a day.</p>
+    <div class="cta-actions">
+      <a href="#how-it-works" class="btn-primary">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+        Start Building
+      </a>
+      <a href="#components" class="btn-secondary">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        View Components
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="#" class="logo">
+          <div class="logo-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <span class="logo-text">Guardian<span>Alert</span></span>
+        </a>
+        <p>An open-source IoT fall detection system built on Arduino — affordable, reliable, and life-saving.</p>
+      </div>
+      <div class="footer-col">
+        <h5>Project</h5>
+        <ul>
+          <li><a href="#problem">The Problem</a></li>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#how-it-works">How It Works</a></li>
+          <li><a href="#specs">Specifications</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Build</h5>
+        <ul>
+          <li><a href="#components">Components</a></li>
+          <li><a href="#testing">Testing Guide</a></li>
+          <li><a href="#upgrades">Upgrades</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Hardware</h5>
+        <ul>
+          <li><a href="#components">Arduino Nano</a></li>
+          <li><a href="#components">MPU6050</a></li>
+          <li><a href="#components">SIM800L</a></li>
+          <li><a href="#components">18650 Battery</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2025 GuardianAlert — Open Source IoT Project. Built with Arduino &amp; heart.</p>
+      <div class="footer-tags">
+        <span class="footer-tag">Arduino</span>
+        <span class="footer-tag">IoT</span>
+        <span class="footer-tag">MPU6050</span>
+        <span class="footer-tag">SIM800L</span>
+        <span class="footer-tag">Health & Safety</span>
+        <span class="footer-tag">Open Source</span>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+/* NAV scroll effect */
+window.addEventListener('scroll',()=>{
+  document.getElementById('nav').classList.toggle('scrolled',scrollY>40)
+})
+
+/* Scroll reveal */
+const observer = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible')}})
+},{threshold:0.1,rootMargin:'0px 0px -60px 0px'})
+document.querySelectorAll('.reveal').forEach(el=>observer.observe(el))
+
+/* FAQ accordion */
+function toggleFaq(btn){
+  const answer = btn.nextElementSibling
+  const isOpen = btn.classList.contains('open')
+  document.querySelectorAll('.faq-question.open').forEach(b=>{
+    b.classList.remove('open')
+    b.nextElementSibling.classList.remove('open')
+  })
+  if(!isOpen){btn.classList.add('open');answer.classList.add('open')}
+}
+
+/* Mobile menu */
+function toggleMenu(){
+  const links = document.querySelector('.nav-links')
+  if(links.style.display==='flex'){
+    links.style.display='none'
+  } else {
+    links.style.cssText='display:flex;flex-direction:column;position:fixed;top:70px;left:0;right:0;background:rgba(10,22,40,0.98);padding:24px;gap:20px;border-bottom:1px solid rgba(255,255,255,0.08);z-index:99'
+    links.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{links.style.display='none'},{ once:true }))
+  }
+}
+
+/* Staggered reveal on load */
+document.querySelectorAll('.hero-content.reveal, .hero-visual.reveal').forEach((el,i)=>{
+  el.style.transitionDelay = i*0.15+'s'
+})
+</script>
+</body>
+</html>

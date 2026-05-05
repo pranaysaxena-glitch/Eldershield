@@ -1,0 +1,21 @@
+{
+  "name": "eldershieldnew",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eldershield26-maker/elder-shield.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/eldershield26-maker/elder-shield/issues"
+  },
+  "homepage": "https://github.com/eldershield26-maker/elder-shield#readme"
+}
